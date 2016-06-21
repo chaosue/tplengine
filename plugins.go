@@ -3,8 +3,20 @@ package tplengine
 import (
 	"encoding/json"
 	"html/template"
+	"math"
+	"fmt"
 )
-
+// Paging 分页参数
+type Paging struct{
+	// 要显示的页数(page numbers to display)
+	PageNumbers []int
+	PageNo      int
+	RowsPerPage int
+	TotalRows   int
+	TotalPages  int
+	StartPage, EndPage    int
+	PrePageNo, NextPageNo int
+}
 var plugins = template.FuncMap{
 	"json": func(d interface{}) template.HTML {
 		b, err := json.Marshal(d)
@@ -49,5 +61,60 @@ var plugins = template.FuncMap{
 	},
 	"divide": func(i, j int) int {
 		return i / j
+	},
+	// 生成分页参数对象
+	"paging": func(displayPageCount, pageNo, rowsPerPage, totalRows  int)*Paging{
+		paging := &Paging{}
+		totalPages := int(math.Ceil(float64(totalRows) / float64(rowsPerPage)))
+		if totalPages < 1 {
+			return paging
+		}
+		if pageNo > totalPages {
+			pageNo = totalPages
+		}
+		paging.TotalPages = totalPages
+		paging.TotalRows = totalRows
+		paging.RowsPerPage = rowsPerPage
+		paging.PageNo = pageNo
+		sidePageCount := displayPageCount/2
+		var upperCount, lowerCount int
+		lowerCount, upperCount = sidePageCount, sidePageCount
+		// 为偶数时总数会大于总长度,因此选择将起始页向后推一页.
+		if sidePageCount * 2 == displayPageCount{
+			lowerCount = sidePageCount - 1
+		}
+		paging.EndPage = pageNo + upperCount
+		d := 0
+		// 如果终止页超过总页数,则将多出的页数补偿到起始页
+		if paging.EndPage > totalPages {
+			d = paging.EndPage - totalPages
+			paging.EndPage = totalPages
+		}
+		paging.StartPage = pageNo - lowerCount - d
+		// 起始页补偿
+		if paging.StartPage < 1 {
+			d = 1 - paging.StartPage
+			paging.StartPage = 1
+			paging.EndPage += d
+			if paging.EndPage > paging.TotalPages {
+				paging.EndPage = paging.TotalPages
+			}
+		}
+		if paging.StartPage > paging.PageNo {
+			paging.StartPage = paging.PageNo
+		}
+
+		paging.PrePageNo = paging.StartPage - 1
+		if paging.PrePageNo < 1 {
+			paging.PrePageNo = 1
+		}
+		paging.NextPageNo = paging.EndPage + 1
+		if paging.NextPageNo > paging.TotalPages {
+			paging.NextPageNo = paging.TotalPages
+		}
+		for i := paging.StartPage; i <= paging.EndPage; i++ {
+			paging.PageNumbers = append(paging.PageNumbers, i)
+		}
+		return paging
 	},
 }
